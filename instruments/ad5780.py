@@ -112,7 +112,7 @@ class AD5780(LineSocketInstrument):
         return reply
 
     def _protocol_error(self, message):
-        self.close()
+        self.disconnect()
         raise ProtocolError(message)
 
     def get_id(self):
@@ -200,6 +200,26 @@ class AD5780(LineSocketInstrument):
             self._protocol_error(f"Malformed ramp status fields: {reply!r}")
         return RampStatus(parts[1], channel, target)
 
+    def get_output_codes(self, *, via_usb=False):
+        """Current device-tracked codes without SPI reads, including during ramps.
+
+        Each item contains channel, code (None if unknown), and source:
+        unknown/readback/write. A tracked write is not analog verification.
+        """
+        reply = self._bench_controls().output_codes() if via_usb else self.query("VALUES")
+        parts = reply.split()
+        try:
+            if len(parts) != 9 or parts[0] != "VALUES": raise ValueError()
+            result=[]
+            for channel in range(1,5):
+                code=integer(int(parts[channel*2-1]),0,MAX_CODE,"code")
+                source=integer(int(parts[channel*2]),0,2,"source")
+                result.append(dict(channel=channel,code=code if source else None,
+                                   source=("unknown","readback","write")[source]))
+            return result
+        except (ValueError,TypeError):
+            self._protocol_error(f"Malformed output telemetry: {reply!r}")
+
     def ramp(self, channel, voltage, speed, *, step_size=10, wait=True, timeout=3600, poll_interval=0.1):
         """Ramp at requested V/s using device calibration; heavy I/O can slow it.
 
@@ -242,7 +262,7 @@ class AD5780(LineSocketInstrument):
 
     def abort_ramp(self):
         """Close this client's socket; firmware aborts when it detects disconnect."""
-        self.close()
+        self.disconnect()
 
     def _bench_controls(self):
         if self.bench_port is None:

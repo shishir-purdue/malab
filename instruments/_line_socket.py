@@ -73,32 +73,36 @@ class LineSocketInstrument:
                 self._rx.clear()
                 self._handshake()
             except (socket.timeout, TimeoutError) as exc:
-                self.close()
+                self.disconnect()
                 raise InstrumentTimeout("Instrument connection/handshake timed out") from exc
             except OSError as exc:
-                self.close()
+                self.disconnect()
                 raise InstrumentConnectionError(f"Cannot connect to {self.address}: {exc}") from exc
             except Exception:
-                self.close()
+                self.disconnect()
                 raise
         return self
 
     def _handshake(self):
         pass
 
-    def close(self):
+    def disconnect(self):
+        """Close only this network transport, preserving independent controls."""
         with self._lock:
             sock, self.socket = self.socket, None
             self._rx.clear()
             if sock is not None:
                 sock.close()
 
+    def close(self):
+        self.disconnect()
+
     def reconnect(self):
-        self.close()
+        self.disconnect()
         return self.connect()
 
     def set_enable(self, enabled=True):
-        self.close()
+        self.disconnect()
         self.enabled = bool(enabled)
         if self.enabled:
             self.connect()
@@ -170,10 +174,10 @@ class LineSocketInstrument:
                     self._send(data, deadline)
                 return self._readline(deadline) if read else None
             except (socket.timeout, TimeoutError) as exc:
-                self.close()
+                self.disconnect()
                 raise InstrumentTimeout("Instrument reply timed out; connection closed, command outcome may be unknown") from exc
             except (OSError, ProtocolError, InstrumentConnectionError) as exc:
-                self.close()
+                self.disconnect()
                 if isinstance(exc, (ProtocolError, InstrumentConnectionError)):
                     raise
                 raise InstrumentConnectionError(f"Instrument transport failed: {exc}") from exc

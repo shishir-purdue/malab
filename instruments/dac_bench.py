@@ -92,6 +92,13 @@ class DACBenchControls:
             raise ProtocolError(reply)
         return reply
 
+    def output_codes(self):
+        reply = self._query("VALUES")
+        if not reply.startswith("BENCH VALUES "):
+            self.close()
+            raise ProtocolError(reply)
+        return reply[6:]
+
     def __enter__(self):
         return self
 
