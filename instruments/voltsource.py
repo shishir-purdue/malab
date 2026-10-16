@@ -12,6 +12,7 @@ import numpy as np
 
 # Keep the lab's historical import path; the standalone driver avoids VISA/NumPy.
 from .ad5780 import AD5780
+from .dac_array import DACArray
 
 class VoltageSource:
     def ramp_volt(self, v, sweeprate=1, channel=1):

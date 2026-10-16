@@ -4,6 +4,7 @@ from importlib import import_module as _import_module
 _exports = {
     "AD5780": "ad5780", "Keysight34461A": "keysight34461a",
     "DACBenchControls": "dac_bench",
+    "DACArray": "dac_array",
     "InstrumentManager": "instrumentmanager", "InstrumentManagerWindow": "InstrumentManagerWindow",
     "Instrument": "instrumenttypes", "VisaInstrument": "instrumenttypes",
     "TelnetInstrument": "instrumenttypes", "SocketInstrument": "instrumenttypes",

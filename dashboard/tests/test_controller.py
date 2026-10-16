@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from malab.dashboard.controller import Dashboard
+from malab.dashboard.unit import UnitController as Dashboard
 from malab.instruments.ad5780 import ChannelCalibration
 from malab.instruments._line_socket import CommandError
 
@@ -36,6 +36,8 @@ class ControllerTests(unittest.TestCase):
         d=self.make()
         with self.assertRaises(ValueError):d.submit(dict(action='set',request_id='bad',channel=0,voltage=0))
         with self.assertRaises(ValueError):d.submit(dict(action='ramp',request_id='bad',channel=1,voltage=0,speed=0))
+        d.poll_dac()
+        d.dac.calls.clear()
         request=dict(action='set',request_id='once',channel=1,voltage=.05)
         d.submit(request);d.submit(request)
         self.assertEqual(d.commands.qsize(),1)

@@ -1,0 +1,6 @@
+{
+  "addresses": ["192.168.1.200"],
+  "bench_ports": ["COM5"],
+  "meter_address": "192.168.1.71",
+  "meter_channel": 4
+}

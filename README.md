@@ -157,3 +157,13 @@ completed write, and unknown. `via_usb=True` uses the independent bench port
 for safe-zero progress while Ethernet is off. Neither transport measures voltage.
 `dac.disconnect()` and `abort_ramp()` close Ethernet only, preserving USB recovery.
 `dac.close()` closes both transports when the instrument session is finished.
+
+### Multiple DAC units
+
+Use [DACArray](instruments/DAC_ARRAY.md) with an ordered list of IP addresses.
+Each box contributes four global channels; network/recovery controls stay scoped
+to its unit. Configure the GUI in `dashboard/units.json`. The Keysight is now
+assigned to DAC 4. See the [current visible hardware tests](notebooks/modular_dac_acceptance.ipynb)
+and [offline multi-unit tests](notebooks/multidac_offline_tests.ipynb).
+DAC 4 passes functional checks but fails ±0.5 mV absolute accuracy as-is; its
+nominal zero measures about +2.87 mV. No calibration or firmware was changed.

@@ -66,11 +66,26 @@ def serve(dashboard,port=8765):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port',type=int,default=8765)
-    parser.add_argument('--dac',default='192.168.1.200');parser.add_argument('--meter',default='192.168.1.71')
-    parser.add_argument('--usb',default='COM5')
+    parser.add_argument('--config',type=Path,default=Path(__file__).with_name('units.json'))
+    parser.add_argument('--dacs',nargs='+',help='Ordered unit IPs; overrides the config IP and USB lists')
+    parser.add_argument('--dac',help='One-unit compatibility option')
+    parser.add_argument('--meter');parser.add_argument('--meter-channel',type=int)
+    parser.add_argument('--usbs',nargs='+',help='One USB port or none per unit, in the same order')
+    parser.add_argument('--usb',help='One-unit USB compatibility option')
     parser.add_argument('--debug-stacks',action='store_true',help=argparse.SUPPRESS)
     args=parser.parse_args()
     if args.debug_stacks:
         import faulthandler
         faulthandler.dump_traceback_later(10,repeat=True)
-    serve(Dashboard(args.dac,args.meter,args.usb or None),args.port)
+    config=json.loads(args.config.read_text(encoding='utf-8'))
+    if args.dac and args.dacs:parser.error('Use --dac or --dacs, not both')
+    if args.dacs or args.dac:
+        config['addresses']=args.dacs or [args.dac]
+        config['bench_ports']=[None]*len(config['addresses'])
+    if args.usbs:config['bench_ports']=[None if p.lower()=='none' else p for p in args.usbs]
+    if args.usb is not None:
+        if args.usbs or len(config['addresses'])!=1:parser.error('--usb requires one unit; use --usbs for multiple units')
+        config['bench_ports']=[args.usb or None]
+    if args.meter:config['meter_address']=args.meter
+    if args.meter_channel is not None:config['meter_channel']=args.meter_channel
+    serve(Dashboard(**config),args.port)
