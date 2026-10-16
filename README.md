@@ -140,3 +140,20 @@ Evidence and local commits are in the outer repository's
 
 References: [Keysight LAN connections](https://www.keysight.com/zz/en/lib/resources/user-manuals/direct-instrument-connection-using-lan-572739.html)
 and [Truevolt Operating and Service Guide](https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf).
+
+### Local dashboard
+
+Open **http://localhost:8765** after running `./malab/tools/start_dashboard.ps1`
+from the outer DAC Box folder. See [dashboard instructions](dashboard/README.md)
+and the [visible dashboard acceptance notebook](notebooks/dashboard_acceptance.ipynb).
+All four channels have controls and live device values; only CH1 is independently
+measured by the Keysight. The passive Network good indicator requires a fresh
+application reply. Connecting is read-only; Set/Ramp prepare their selected
+channel so a cold output is released from its startup clamp.
+
+`dac.get_output_codes()` reports four tracked code/source records without SPI
+reads, including during a ramp. Sources distinguish checked readback, last
+completed write, and unknown. `via_usb=True` uses the independent bench port
+for safe-zero progress while Ethernet is off. Neither transport measures voltage.
+`dac.disconnect()` and `abort_ramp()` close Ethernet only, preserving USB recovery.
+`dac.close()` closes both transports when the instrument session is finished.
