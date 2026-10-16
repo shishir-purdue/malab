@@ -1,7 +1,8 @@
 """Four-channel DAC Box client; requires RAMP ACCEPTED / STATUS firmware.
 
 Construction consumes the welcome banner but never initializes or sets a DAC.
-Nominal voltage conversion assumes +/-10 V DAC references, not supply-rail voltage.
+Voltage conversion uses device calibration by default. The nominal diagnostic
+override assumes +/-10 V DAC references, not supply-rail voltage.
 """
 from dataclasses import dataclass
 import math
@@ -200,7 +201,7 @@ class AD5780(LineSocketInstrument):
         return RampStatus(parts[1], channel, target)
 
     def ramp(self, channel, voltage, speed, *, step_size=10, wait=True, timeout=3600, poll_interval=0.1):
-        """Ramp at nominal V/s. Device timing/transport overhead can make it slower.
+        """Ramp at requested V/s using device calibration; heavy I/O can slow it.
 
         Overall completion timeout leaves the connection/ramp intact; a transport
         timeout closes the connection. Neither case retries the output command.
