@@ -9,7 +9,7 @@ from numbers import Real
 import operator
 import time
 
-from ._line_socket import (LineSocketInstrument, CommandError, ProtocolError,
+from ._line_socket import (LineSocketInstrument, InstrumentError, CommandError, ProtocolError,
                           InstrumentTimeout, positive_seconds)
 
 V_PER_BIT = 20.0 / (1 << 18)
@@ -76,7 +76,7 @@ class AD5780(LineSocketInstrument):
     default_port = 23
 
     def __init__(self, name="AD5780", address="192.168.1.200", enabled=True, timeout=3.0, recv_length=1024,
-                 *, use_calibration=True):
+                 *, use_calibration=True, bench_port=None):
         # Retained from the lab's supplied voltsource.py constructor.
         # Newline framing, not a single recv size, determines complete replies.
         self.recv_length = integer(recv_length, 1, 65536, "recv_length")
@@ -84,6 +84,9 @@ class AD5780(LineSocketInstrument):
             raise ValueError("use_calibration must be bool")
         self.use_calibration = use_calibration
         self._calibration = {}
+        if bench_port is not None and (not isinstance(bench_port, str) or not bench_port.strip()):
+            raise ValueError("bench_port must be a serial port name or None")
+        self.bench_port, self._bench = bench_port, None
         super().__init__(name, address, enabled, timeout)
 
     def _handshake(self):
@@ -239,3 +242,76 @@ class AD5780(LineSocketInstrument):
     def abort_ramp(self):
         """Close this client's socket; firmware aborts when it detects disconnect."""
         self.close()
+
+    def _bench_controls(self):
+        if self.bench_port is None:
+            raise ValueError("USB recovery requires bench_port and the optional bench firmware")
+        if self._bench is None:
+            from .dac_bench import DACBenchControls
+            self._bench = DACBenchControls(self.bench_port)
+        return self._bench
+
+    def get_recovery_status(self):
+        """USB status independent of Ethernet: READY/OFFLINE/ACTIVE/LATCHED/FAILED."""
+        return self._bench_controls().status()
+
+    def network_reset(self, *, wait=False, timeout=20):
+        """Request the physical NETWORK action via USB; preserve every DAC output.
+
+        This invalidates TCP. With wait=True, establish a fresh connection; only
+        the connection handshake is retried, never the action or output commands.
+        """
+        timeout = positive_seconds(timeout)
+        if wait and not self.enabled:
+            raise ValueError("Enable Ethernet before requesting wait=True")
+        reply = self._bench_controls().network_reset()
+        super().close()  # Keep the independent USB channel open.
+        if wait:
+            deadline = time.monotonic()+timeout
+            original_timeout = self.timeout
+            last_error = None
+            try:
+                while time.monotonic() < deadline:
+                    self.timeout = min(original_timeout, max(0.01, deadline-time.monotonic()))
+                    try:
+                        self.connect()
+                        return reply
+                    except (InstrumentError, OSError) as exc:
+                        last_error = exc
+                        time.sleep(0.1)
+            finally:
+                self.timeout = original_timeout
+            raise InstrumentTimeout(f"NETWORK accepted, but fresh connection failed: {last_error}")
+        return reply
+
+    def safe_zero(self, *, wait=False, timeout=3600, poll_interval=0.1):
+        """All-channel physical SAFE ZERO action via USB, at <=0.01 V/s.
+
+        It continues without Ethernet and stays latched until NETWORK. Completion
+        means firmware reached its calibrated codes; a meter verifies analog zero.
+        """
+        timeout = positive_seconds(timeout)
+        poll_interval = positive_seconds(poll_interval, "poll_interval")
+        reply = self._bench_controls().safe_zero()
+        super().close()
+        if not wait:
+            return reply
+        deadline = time.monotonic()+timeout
+        while time.monotonic() < deadline:
+            state = self.get_recovery_status()
+            if state == "FAILED":
+                raise CommandError("SAFE ZERO failed validation; outputs unchanged, recovery latched")
+            if state == "LATCHED":
+                return state
+            if state != "ACTIVE":
+                raise CommandError(f"Unexpected SAFE ZERO state: {state}")
+            time.sleep(poll_interval)
+        raise InstrumentTimeout("SAFE ZERO completion timeout; device action may still be running")
+
+    safe_ramp = safe_zero
+
+    def close(self):
+        super().close()
+        if self._bench is not None:
+            self._bench.close()
+            self._bench = None

@@ -61,7 +61,7 @@ class DACBenchControls:
 
     def status(self):
         reply = self._query("STATUS")
-        if reply not in {"BENCH STATUS READY", "BENCH STATUS OFFLINE", "BENCH STATUS ACTIVE", "BENCH STATUS LATCHED"}:
+        if reply not in {"BENCH STATUS READY", "BENCH STATUS OFFLINE", "BENCH STATUS ACTIVE", "BENCH STATUS LATCHED", "BENCH STATUS FAILED"}:
             self.close()
             raise ProtocolError(reply)
         return reply.rsplit(" ", 1)[1]
