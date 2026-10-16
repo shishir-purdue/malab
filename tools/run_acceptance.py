@@ -12,6 +12,55 @@ import sys
 import traceback
 
 
+def execute_jupyter(notebook, args, manifest, output_dir, repo):
+    """Use a real Jupyter kernel from this Python environment (optional dependency)."""
+    import nbformat
+    from nbclient import NotebookClient
+    selected = nbformat.reads(json.dumps(notebook), as_version=4)
+    selected.cells = [c for c in selected.cells if c.cell_type != 'code'
+                      or c.metadata.get('case_id') in args.cases
+                      or 'setup' in c.metadata.get('tags', [])]
+    for cell in selected.cells:
+        if cell.cell_type != 'code':
+            continue
+        cell.outputs = []
+        cell.execution_count = None
+        if cell.id == 'imports':
+            cell.source = f"RUN_ID = {manifest['run_id']!r}\n" + cell.source
+        if 'parameters' in cell.metadata.get('tags', []):
+            cell.source += f"\nRUN_LIVE = {args.live!r}\nALL_OUTPUTS_ISOLATED = {args.isolated!r}\n"
+    nbformat.validate(selected)
+    def announce(cell, cell_index):
+        if cell.cell_type == 'code':
+            print('RUN Jupyter', cell.metadata.get('case_id', cell.id), flush=True)
+    client = NotebookClient(selected, timeout=420, allow_errors=False,
+                            resources={'metadata': {'path': str(repo.parent)}},
+                            on_cell_start=announce)
+    manager = client.create_kernel_manager()
+    manager.kernel_spec.argv = [sys.executable, '-m', 'ipykernel_launcher', '-f', '{connection_file}']
+    failed = False
+    try:
+        client.execute()
+    except Exception:
+        failed = True
+        traceback.print_exc()
+    finally:
+        for cell in selected.cells:
+            if cell.cell_type != 'code' or cell.execution_count is None:
+                continue
+            errors = [o for o in cell.outputs if o.output_type == 'error']
+            case = cell.metadata.get('case_id', cell.id)
+            manifest['results'].append(dict(case=case, result='FAIL' if errors else 'PASS',
+                error=errors[0].get('evalue') if errors else None))
+            print(manifest['results'][-1], flush=True)
+        manifest['engine'] = 'Jupyter/nbclient'
+        manifest['kernel_python'] = sys.executable
+        nbformat.write(selected, output_dir/'executed.ipynb')
+        (output_dir/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
+        print('Run evidence:', output_dir, flush=True)
+    return int(failed)
+
+
 class Tee(io.StringIO):
     def __init__(self, terminal):
         super().__init__()
@@ -27,6 +76,7 @@ def main():
     parser.add_argument('--cases', nargs='+', required=True)
     parser.add_argument('--live', action='store_true')
     parser.add_argument('--isolated', action='store_true')
+    parser.add_argument('--jupyter', action='store_true', help='Execute with a real Jupyter kernel in this environment')
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     os.chdir(repo.parent)
@@ -47,6 +97,8 @@ def main():
         manifest['revisions'][directory.name] = dict(
             head=subprocess.check_output(git+['rev-parse','HEAD'],text=True).strip(),
             dirty=bool(subprocess.check_output(git+['status','--porcelain'],text=True).strip()))
+    if args.jupyter:
+        return execute_jupyter(notebook, args, manifest, output_dir, repo)
     count = 0
     failed = False
     try:
