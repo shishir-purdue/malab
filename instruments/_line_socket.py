@@ -155,8 +155,12 @@ class LineSocketInstrument:
                 raise InstrumentConnectionError("Instrument closed connection before a complete reply")
             self._rx.extend(data)
 
-    def _exchange(self, command=None, *, read=True, timeout=None):
+    def _exchange(self, command=None, *, read=True, timeout=None, terminate=True):
         data = self._encode(command) if command is not None else None
+        if not isinstance(terminate, bool):
+            raise ValueError("terminate must be bool")
+        if data is not None and not terminate:
+            data = data[:-1]
         seconds = self.timeout if timeout is None else positive_seconds(timeout)
         with self._lock:
             self._require_connection()
@@ -177,8 +181,14 @@ class LineSocketInstrument:
     def query(self, command, timeout=None):
         return self._exchange(command, timeout=timeout)
 
-    def write(self, command):
-        return self._exchange(command, read=False)
+    def write(self, command, *, terminate=True):
+        """Send text without reading; terminate=False sends an explicit fragment.
+
+        This low-level API is useful for protocol diagnostics. The caller must
+        complete the line or close it; typed voltage/ramp methods always frame
+        complete commands and read their acknowledgments.
+        """
+        return self._exchange(command, read=False, terminate=terminate)
 
     def read(self, timeout=None):
         return self._exchange(timeout=timeout)
