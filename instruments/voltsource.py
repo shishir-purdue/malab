@@ -10,6 +10,9 @@ import re, time
 from numpy import linspace
 import numpy as np
 
+# Keep the lab's historical import path; the standalone driver avoids VISA/NumPy.
+from .ad5780 import AD5780
+
 class VoltageSource:
     def ramp_volt(self, v, sweeprate=1, channel=1):
         # channel is only for SRS, YOKO ignore channel

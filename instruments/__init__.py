@@ -1,29 +1,32 @@
+"""Instrument exports loaded on demand; unrelated drivers keep their own dependencies."""
+from importlib import import_module as _import_module
 
-from .instrumentmanager import InstrumentManager
-from .instrumenttypes import Instrument, VisaInstrument, TelnetInstrument, SocketInstrument, SerialInstrument, \
-    WebInstrument
+_exports = {
+    "AD5780": "ad5780", "Keysight34461A": "keysight34461a",
+    "DACBenchControls": "dac_bench",
+    "InstrumentManager": "instrumentmanager", "InstrumentManagerWindow": "InstrumentManagerWindow",
+    "Instrument": "instrumenttypes", "VisaInstrument": "instrumenttypes",
+    "TelnetInstrument": "instrumenttypes", "SocketInstrument": "instrumenttypes",
+    "SerialInstrument": "instrumenttypes", "WebInstrument": "instrumenttypes",
+    "E4440": "spectrumanalyzer", "N5242A": "PNAX", "N5183B": "rfgenerators",
+    "E8257D": "rfgenerators", "BNC845": "rfgenerators", "Keithley199": "multimeter",
+    "HP34401A": "multimeter", "BKPowerSupply": "bkpowersupply",
+    "BKPowerSupplynew": "bkpowersupply", "BKPowerSupply2": "bkpowersupply",
+    "SRS900": "voltsource", "YokogawaGS200": "voltsource",
+    "BiasDriver": "function_generator", "FilamentDriver": "function_generator",
+    "BNCAWG": "function_generator",
+}
 
-try: from .InstrumentManagerWindow import InstrumentManagerWindow
-except: print("Could not load InstrumentManagerWindow")
+__all__ = list(_exports)
 
-from .spectrumanalyzer import E4440
-from .PNAX import N5242A
-from .rfgenerators import N5183B,E8257D,BNC845
-from .multimeter import Keithley199
 
-try: from .bkpowersupply import BKPowerSupply
-except: print("Could not load BKPowerSupply")
-try: from .bkpowersupply import BKPowerSupplynew
-except: print("Could not load BKPowerSupply")
-try: from .bkpowersupply import BKPowerSupply2
-except: print("Could not load BKPowerSupply")
-try: from .voltsource import SRS900
-except: print("Could not load SRS900")
-try: from .voltsource import YokogawaGS200
-except: print("Could not load YokogawaGS200")
-try: from .function_generator import BiasDriver,FilamentDriver,BNCAWG
-except: print("Could not load BNC AWG classes")
-try: from .multimeter import Keithley199, HP34401A
-except: print("Could not load Keithley199/HP34401A multimeter classes")
-try: from .spectrumanalyzer import E4440
-except: print("Could not load E4440 Spectrum Analyzer")
+def __getattr__(name):
+    if name not in _exports:
+        raise AttributeError(name)
+    value = getattr(_import_module("." + _exports[name], __name__), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(_exports))
