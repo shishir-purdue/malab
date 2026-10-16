@@ -310,6 +310,18 @@ class AD5780(LineSocketInstrument):
 
     safe_ramp = safe_zero
 
+    def bench_inject_fault(self, kind):
+        """Opt-in bench diagnostics: readback/network/clear, via independent USB.
+
+        readback substitutes invalid SPI replies without changing DAC registers;
+        network clears the real controller IP to exercise automatic recovery.
+        clear removes the readback override. These are software fault emulations,
+        not proof of recovery from physically damaged hardware.
+        """
+        if kind not in {"readback", "network", "clear"}:
+            raise ValueError("kind must be readback, network, or clear")
+        return self._bench_controls().inject_fault(kind)
+
     def close(self):
         super().close()
         if self._bench is not None:

@@ -83,6 +83,15 @@ class DACBenchControls:
     def close(self):
         self.port.close()
 
+    def inject_fault(self, kind):
+        if kind not in {"readback", "network", "clear"}:
+            raise ValueError("kind must be readback, network, or clear")
+        reply = self._query("FAULT " + kind.upper())
+        if reply != "BENCH OK FAULT " + kind.upper():
+            self.close()
+            raise ProtocolError(reply)
+        return reply
+
     def __enter__(self):
         return self
 
