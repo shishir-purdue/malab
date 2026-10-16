@@ -45,16 +45,49 @@ class RampStatus:
     target_code: int
 
 
+@dataclass(frozen=True)
+class ChannelCalibration:
+    offset_nanovolts: int
+    step_picovolts: int
+    zero_code: int
+    measured: bool
+
+    @property
+    def volts_per_code(self):
+        if (self.offset_nanovolts, self.step_picovolts, self.zero_code, self.measured) == (-10000000000, 76293945, 131072, False):
+            return V_PER_BIT
+        return self.step_picovolts * 1e-12
+
+    def voltage(self, code):
+        return self.offset_nanovolts * 1e-9 + integer(code, 0, MAX_CODE, "code") * self.volts_per_code
+
+    def code(self, voltage):
+        voltage_to_code(voltage)  # Common finite/nominal +/-10 V validation.
+        raw = (voltage-self.offset_nanovolts*1e-9)/self.volts_per_code
+        # A nominal +10 V convention can be one LSB above full scale. Larger
+        # excursions (e.g. calibrated -10 V on this box) must never clamp silently.
+        if raw < -1.000001 or raw > MAX_CODE+1.000001:
+            raise ValueError(f"Requested voltage is outside this channel's achievable range "
+                             f"[{self.voltage(0):.9f}, {self.voltage(MAX_CODE):.9f}] V")
+        return min(MAX_CODE, max(0, int(math.floor(raw+0.5))))
+
+
 class AD5780(LineSocketInstrument):
     default_port = 23
 
-    def __init__(self, name="AD5780", address="192.168.1.200", enabled=True, timeout=3.0, recv_length=1024):
+    def __init__(self, name="AD5780", address="192.168.1.200", enabled=True, timeout=3.0, recv_length=1024,
+                 *, use_calibration=True):
         # Retained from the lab's supplied voltsource.py constructor.
         # Newline framing, not a single recv size, determines complete replies.
         self.recv_length = integer(recv_length, 1, 65536, "recv_length")
+        if not isinstance(use_calibration, bool):
+            raise ValueError("use_calibration must be bool")
+        self.use_calibration = use_calibration
+        self._calibration = {}
         super().__init__(name, address, enabled, timeout)
 
     def _handshake(self):
+        self._calibration.clear()
         first = self.read()
         if first.startswith("ERR!"):
             raise CommandError(first)
@@ -101,8 +134,43 @@ class AD5780(LineSocketInstrument):
         return int(reply)
 
     def get_voltage(self, channel):
-        """Nominal register-derived voltage; use the DMM for an analog measurement."""
-        return code_to_voltage(self.get_code(channel))
+        """Calibrated register-derived volts; use a meter for an independent reading."""
+        code = self.get_code(channel)
+        return self.code_to_voltage(channel, code)
+
+    def get_calibration(self, channel, *, refresh=False):
+        channel = integer(channel, 1, 4, "channel")
+        if not self.use_calibration:
+            return ChannelCalibration(-10000000000, 76293945, 131072, False)
+        if refresh or channel not in self._calibration:
+            reply = self.query(f"CAL {channel}")
+            try:
+                label, ch, offset, step, zero, measured = reply.split()
+                ch, offset, step, zero, measured = map(int, (ch,offset,step,zero,measured))
+                if (label != "CAL" or ch != channel or measured not in (0,1)
+                        or not -12_000_000_000 <= offset <= -8_000_000_000
+                        or not 60_000_000 <= step <= 100_000_000
+                        or not 0 <= zero <= MAX_CODE):
+                    raise ValueError("invalid calibration fields")
+                cal = ChannelCalibration(offset, step, zero, bool(measured))
+                if abs(cal.voltage(zero)) > cal.volts_per_code:
+                    raise ValueError("zero code inconsistent with calibration")
+            except (ValueError, TypeError):
+                self._protocol_error(f"Invalid device calibration: {reply!r}")
+            self._calibration[channel] = cal
+        return self._calibration[channel]
+
+    def get_voltage_limits(self, channel):
+        cal = self.get_calibration(channel)
+        return max(-10.0, cal.voltage(0)), min(10.0, cal.voltage(MAX_CODE))
+
+    def voltage_to_code(self, channel, voltage):
+        voltage_to_code(voltage)  # Reject invalid requests before any CAL query.
+        return self.get_calibration(channel).code(voltage)
+
+    def code_to_voltage(self, channel, code):
+        integer(code, 0, MAX_CODE, "code")
+        return self.get_calibration(channel).voltage(code)
 
     def set_code(self, channel, code):
         channel, code = integer(channel, 1, 4, "channel"), integer(code, 0, MAX_CODE, "code")
@@ -112,7 +180,8 @@ class AD5780(LineSocketInstrument):
         return code
 
     def set_voltage(self, channel, voltage):
-        return code_to_voltage(self.set_code(channel, voltage_to_code(voltage)))
+        code = self.set_code(channel, self.voltage_to_code(channel, voltage))
+        return self.code_to_voltage(channel, code)
 
     def get_status(self, timeout=None):
         reply = self.query("STATUS", timeout)
@@ -134,12 +203,17 @@ class AD5780(LineSocketInstrument):
         timeout closes the connection. Neither case retries the output command.
         """
         channel = integer(channel, 1, 4, "channel")
-        target = voltage_to_code(voltage)
+        voltage_to_code(voltage)
         step_size = integer(step_size, 1, MAX_CODE, "step_size")
         speed = positive_seconds(speed, "speed in V/s")
         timeout = positive_seconds(timeout)
         poll_interval = positive_seconds(poll_interval, "poll_interval")
-        raw_delay = step_size * V_PER_BIT / speed * 1_000_000
+        # Reject impossibly slow rates before any calibration/network query.
+        if step_size * V_PER_BIT / speed * 1_000_000 > 2147483647:
+            raise ValueError("Requested speed is too slow for the device delay range")
+        cal = self.get_calibration(channel)
+        target = cal.code(voltage)
+        raw_delay = step_size * cal.volts_per_code / speed * 1_000_000
         if not math.isfinite(raw_delay) or raw_delay > 2147483647:
             raise ValueError("Requested speed is too slow for the device delay range")
         delay = max(1, math.ceil(raw_delay))
