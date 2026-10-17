@@ -76,10 +76,13 @@ class ChannelCalibration:
 class AD5780(LineSocketInstrument):
     default_port = 23
 
-    def __init__(self, name="AD5780", address="192.168.1.200", enabled=True, timeout=3.0, recv_length=1024,
+    def __init__(self, name="AD5780", address=None, enabled=True, timeout=3.0, recv_length=1024,
                  *, use_calibration=True, bench_port=None):
         # Retained from the lab's supplied voltsource.py constructor.
         # Newline framing, not a single recv size, determines complete replies.
+        if address is None:
+            from malab.bench_config import load_bench_config
+            address=load_bench_config()['units'][0]['address']
         self.recv_length = integer(recv_length, 1, 65536, "recv_length")
         if not isinstance(use_calibration, bool):
             raise ValueError("use_calibration must be bool")

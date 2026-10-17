@@ -2,7 +2,7 @@ param([int]$Port = 8765, [string]$Config = '', [string]$Usb, [switch]$Restart, [
 $ErrorActionPreference = 'Stop'
 $dashboardRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $dashboardPython = Join-Path $dashboardRoot '.venv-bench/Scripts/python.exe'
-if (-not $Config) { $Config = Join-Path $dashboardRoot 'malab/dashboard/units.json' }
+if (-not $Config) { $Config = if ($env:DAC_BENCH_CONFIG) { $env:DAC_BENCH_CONFIG } else { Join-Path $dashboardRoot 'config/bench.local.json' } }
 $Config = (Resolve-Path -LiteralPath $Config).Path
 if (-not (Test-Path -LiteralPath $dashboardPython)) {
     throw "Bench Python is missing: $dashboardPython. Follow malab/dashboard/README.md first."

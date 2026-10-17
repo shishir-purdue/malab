@@ -1,3 +1,4 @@
+from malab.bench_config import instrument_address
 __author__ = 'Nate'
 
 
@@ -13,7 +14,7 @@ im = InstrumentManager()
 #plotter = LivePlotClient()
 dcflux = im['YOKO2']
 nwa = im['PNAX']
-# nwa = N5242A("N5242A", address="192.168.14.249", timeout=10.)
+# nwa = N5242A("N5242A", address=instrument_address('nwa'), timeout=10.)
 #drive = im['RF3']
 print('Deviced Connected')
 expt_path = os.getcwd() + '\data'

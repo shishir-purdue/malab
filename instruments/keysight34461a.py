@@ -8,7 +8,10 @@ from ._line_socket import LineSocketInstrument, ProtocolError, CommandError
 
 
 class Keysight34461A(LineSocketInstrument):
-    def __init__(self, name="Keysight34461A", address="192.168.1.71", enabled=True, timeout=5.0):
+    def __init__(self, name="Keysight34461A", address=None, enabled=True, timeout=5.0):
+        if address is None:
+            from malab.bench_config import load_bench_config
+            address=load_bench_config()['meter']['address']
         self._dc_configured = False
         super().__init__(name, address, enabled, timeout)
 

@@ -5,6 +5,7 @@ SRS900 Voltage Source (voltsource.py)
 :Author: David Schuster
 """
 
+from malab.bench_config import instrument_address
 from malab.instruments import SocketInstrument, SerialInstrument, VisaInstrument, Instrument
 import re, time
 from numpy import linspace
@@ -345,7 +346,7 @@ class YokogawaGS200(SocketInstrument, VoltageSource):
 
 def test_yoko(yoko=None):
     if yoko is None:
-        yoko = YokogawaGS200(address='10.120.35.219')
+        yoko = YokogawaGS200(address=instrument_address('yokogawa'))
 
     print(yoko.get_id())
     yoko.set_mode('current')
@@ -359,5 +360,5 @@ if __name__ == "__main__":
     #srs=SRS900(address="COM17")
     #print srs.get_id()
     #srs.set_volt(.5,2)
-    yoko = YokogawaGS200(address='10.120.35.219')
+    yoko = YokogawaGS200(address=instrument_address('yokogawa'))
     test_yoko(yoko)

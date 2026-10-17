@@ -19,7 +19,8 @@ Use `-NoBrowser` to start only the server. Or run in a terminal (Ctrl+C stops it
 Python 3.11 and pyserial are required by this checkout's bench drivers. The web
 server itself uses only Python's standard library. On another installation,
 create the bench environment following the main README before running it.
-Optional arguments: `--port 8765 --dac 192.168.1.200 --meter 192.168.1.71 --usb COM5`.
+Use `--config` to select another local bench JSON file, or `DAC_BENCH_CONFIG`.
+CLI address overrides are also supported; keep real values out of tracked scripts.
 Use the firmware containing `VALUES` telemetry; USB recovery also needs the
 `uno_r4_minima_bench` build. Close other DAC clients and serial monitors: the
 dashboard owns the DAC's single TCP connection and the USB diagnostic port.
@@ -30,7 +31,7 @@ dashboard owns the DAC's single TCP connection and the USB diagnostic port.
   says **last write**; idle values come from checked register reads. These are
   not independent analog measurements. A cold output can remain clamped while
   its register contains a nonzero value.
-- The Keysight panel is the independent analog measurement of **the configured channel only** (currently DAC 4).
+- The Keysight panel is the independent analog measurement of **the configured channel only** (currently DAC 5 on Unit 2).
   It compares against fresh idle data for that channel with the unchanged **±0.5 mV** limit.
   The comparison is suspended during ramps because samples are asynchronous.
 - **Network good** is a passive signal based on a recent valid device response.
@@ -51,7 +52,7 @@ ten-code steps and device calibration.
 then reconnects. **Disconnect** holds the output and stays disconnected.
 **Reset network** invokes the NETWORK action through USB and reconnects;
 DAC codes are preserved. **Safe zero** invokes the independent USB action on
-the selected unit’s four channels at at most **0.01 V/s**. Progress remains visible through USB while
+the selected unit’s four channels at at most **0.02 V/s**. Progress remains visible through USB while
 Ethernet is paused. It remains latched at its stored zero target until a fresh NETWORK action.
 These two GUI controls require the selected unit’s USB port/bench firmware; physical buttons continue
 to work independently of this server. Closing the browser leaves the server
@@ -77,18 +78,17 @@ Single-unit/controller regressions:
 
 ## Ordered units and meter assignment
 
-Edit `dashboard/units.json`, then run `./malab/tools/start_dashboard.ps1 -Restart`
-while all units are idle. Each entry in `addresses` adds four channels, in order.
-Keep the `bench_ports` list aligned with the IP list; use `null` for a unit with
-no USB control. Duplicate IPs/USB ports are rejected. Missing units stay visible
+Edit the ignored `config/bench.local.json`, then run `./malab/tools/start_dashboard.ps1 -Restart`
+while all units are idle. Each entry in `units` adds four channels, in order.
+Its `address` and `usb_port` belong to that box; use `null` for USB when absent. Duplicate IPs/USB ports are rejected. Missing units stay visible
 in their original positions, and each has its own health signal, command queue,
 reset, stop and safe-zero controls. An unavailable unit does not disable another.
 The top signal reports how many units have fresh responses. Configuration changes
 require a restart; the browser reloads for the new server session without replaying
 any output commands.
 
-`meter_channel` is the **global** channel physically wired to the Keysight.
-It is currently **4**. This is a label/association, not an electronic multiplexer;
+`meter.channel` is the **global** channel physically wired to the Keysight.
+It is currently **5** (Unit 2, local channel 1). This is a label/association, not an electronic multiplexer;
 move the meter leads before changing it. Only that channel receives an analog
 accuracy comparison. A latched zero target can still have analog calibration
 error; the meter comparison remains visible while latched.
@@ -97,9 +97,9 @@ The Python [DACArray API](../instruments/DAC_ARRAY.md) exposes the same global
 numbering. No firmware changes are needed for additional units. Physical buttons
 continue to control exactly their own box's four outputs.
 
-## Current DAC 4 result
+## Recorded DAC 4 result (Unit 1)
 
-The current visible test is
+The prior Unit 1 / DAC 4 visible test is
 [`modular_dac_acceptance.ipynb`](../notebooks/modular_dac_acceptance.ipynb).
 Run it with both live flags enabled on an isolated bench, or use:
 
@@ -127,3 +127,33 @@ records the original one-unit HTTP interface and CH1 result; use the modular
 notebook for the current interface. The runner continues after assertion failures
 so the final cleanup and remaining independent cases run, records each FAIL,
 and exits with a nonzero status if any assertion failed.
+
+## Current two-unit bench
+
+The ordered local configuration maps Unit 1 to DAC 1–4 and Unit 2 to DAC 5–8. The Keysight is on DAC 5. Unit 1 has USB
+power only while the external supply is on Unit 2; its network can respond
+while its DAC readbacks are unavailable. A green network signal reports
+communication only. The operation label reports **Readback unavailable** when
+the unit reports a DAC error. Do not interpret that condition as measured zero.
+
+The visible [Unit 2 / DAC 5 notebook](../notebooks/unit2_dac5_acceptance.ipynb)
+contains every test step, checks a small physical step before the full sweep,
+and sends output/recovery actions only to Unit 2. Run on an isolated bench:
+
+```powershell
+./.venv-bench/Scripts/python.exe malab/tools/run_modular_checks.py --live --isolated --notebook unit2_dac5_acceptance.ipynb
+```
+
+Unit 2 has its own firmware identity and nominal calibration; Unit 1's measured
+CH1 correction is not reused. Serial-selected DFU upload instructions are in
+the firmware repository's software installation guide.
+
+
+The 2026-10-16 DAC 5 run passed ramp timing/relative paths, network hold/reset/
+abort and safe-zero slew/latch/rearm. Absolute set/get, ramp endpoint and safe-zero
+accuracy **failed ±0.5 mV**: maximum request/display errors 2.459040/2.535334 mV,
+final stored-zero reading +0.654471 mV. The diagnostic fit remains unapplied.
+Only DAC 5 has analog evidence on Unit 2. See
+[recorded evidence](../../tests/evidence/2026-10-16-unit2-dac5/).
+
+See [local configuration](../../config/README.md) to add more units without source changes.

@@ -573,7 +573,8 @@ class BiasDriver(BNCAWG):
         else:
             return None
 
+from malab.bench_config import instrument_address
 if __name__ == "__main__":
-    # bnc=BNCAWG(address='192.168.14.133')
-    filament = FilamentDriver(address='192.168.14.133')
+    # bnc=BNCAWG(address=instrument_address('filament'))
+    filament = FilamentDriver(address=instrument_address('filament'))
     print(filament.query('*IDN?'))

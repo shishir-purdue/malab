@@ -11,8 +11,11 @@ from .unit import UnitController
 
 
 class Dashboard:
-    def __init__(self, addresses, *, bench_ports=None, meter_address='192.168.1.71',
+    def __init__(self, addresses, *, bench_ports=None, meter_address=None,
                  meter_channel=1, dac_factory=AD5780, meter_factory=Keysight34461A):
+        if meter_address is None:
+            from malab.bench_config import load_bench_config
+            meter_address=load_bench_config()['meter']['address']
         self.array=DACArray(addresses,bench_ports=bench_ports,timeout=1,dac_factory=dac_factory)
         self.array.locate(meter_channel)
         self.meter_channel=meter_channel

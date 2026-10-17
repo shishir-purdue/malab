@@ -57,13 +57,13 @@ acceptance deliberately uses the requested `voltsource` entry point.
 from malab.instruments.voltsource import AD5780
 from malab.instruments import Keysight34461A
 
-with AD5780(address="192.168.1.200") as dac:
+with AD5780() as dac:
     print(dac.get_id())
     print(dac.get_calibration(1))
     print(dac.get_voltage_limits(1))
     print(dac.get_voltage(1))  # Calibrated register-derived volts, not a meter reading.
 
-with Keysight34461A(address="192.168.1.71") as meter:
+with Keysight34461A() as meter:
     meter.configure_dc_voltage(voltage_range=10, nplc=1)
     print(meter.read_voltage())
 ```
@@ -81,7 +81,7 @@ with Keysight34461A(address="192.168.1.71") as meter:
 | `abort_ramp()` / `close()` | Disconnect; firmware aborts remote ramp and holds output. No automatic zero. |
 
 No constructor initializes or sets a DAC. Firmware stores the measured CH1 profile
-for the box labeled A8:61:0A:AE:F2:01. Conversion is
+for the box labeled 02:00:00:00:00:01. Conversion is
 `-9.992845256 + code * 0.000076283553` volts; calibrated zero is code **130996**.
 The attainable lower endpoint is approximately **−9.99285 V**, so calibrated
 −10 V requests raise `ValueError`. A +10 V request is achievable and corrected.
@@ -116,7 +116,7 @@ commands. Close other serial monitors before opening COM5:
 ```python
 with AD5780(enabled=False, bench_port="COM5") as dac:
     print(dac.get_recovery_status())
-    # dac.safe_zero(wait=True)  # All four channels, <=0.01 V/s, then latched.
+    # dac.safe_zero(wait=True)  # All four channels, <=0.02 V/s, then latched.
     # dac.network_reset()      # Rearm/reset Ethernet; outputs preserved.
 ```
 
@@ -162,8 +162,11 @@ for safe-zero progress while Ethernet is off. Neither transport measures voltage
 
 Use [DACArray](instruments/DAC_ARRAY.md) with an ordered list of IP addresses.
 Each box contributes four global channels; network/recovery controls stay scoped
-to its unit. Configure the GUI in `dashboard/units.json`. The Keysight is now
+to its unit. Configure the GUI in the ignored `config/bench.local.json`. The Keysight is now
 assigned to DAC 4. See the [current visible hardware tests](notebooks/modular_dac_acceptance.ipynb)
 and [offline multi-unit tests](notebooks/multidac_offline_tests.ipynb).
 DAC 4 passes functional checks but fails ±0.5 mV absolute accuracy as-is; its
 nominal zero measures about +2.87 mV. No calibration or firmware was changed.
+
+Default addresses come from the ignored local bench file; explicit addresses are still accepted.
+See [configuration instructions](../config/README.md).

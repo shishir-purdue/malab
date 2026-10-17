@@ -685,6 +685,7 @@ class N5242A(SocketInstrument):
             self.set_averages_and_group_count(averages)
 
 
+from malab.bench_config import instrument_address
 if __name__ == '__main__':
-    na = N5242A("N5242A", address="192.168.14.242")
+    na = N5242A("N5242A", address=instrument_address('pnax'))
     print(na.get_id())

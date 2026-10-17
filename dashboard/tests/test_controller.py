@@ -27,7 +27,7 @@ class FakeDac:
 
 
 class ControllerTests(unittest.TestCase):
-    def make(self):return Dashboard(dac_factory=FakeDac,usb=None)
+    def make(self):return Dashboard(address='192.0.2.10',dac_factory=FakeDac,usb=None)
     def test_monitor_connects_without_output_commands(self):
         d=self.make();d.poll_dac()
         self.assertEqual(d.dac.calls,['connect']);self.assertEqual(d.snapshot()['network']['state'],'good')

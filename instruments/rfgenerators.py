@@ -1,3 +1,4 @@
+from malab.bench_config import instrument_address
 # -*- coding: utf-8 -*-
 """
 Agilent E8257D (rfgenerators.py)
@@ -330,7 +331,7 @@ class BNC845(SocketInstrument):
 
 def test_BNC845(rf=None):
     if rf is None:
-        rf=BNC845(address='192.168.14.151')
+        rf=BNC845(address=instrument_address('bnc845'))
     
     print(rf.get_id())
     rf.set_output(False)
@@ -343,7 +344,7 @@ def test_BNC845(rf=None):
     
 def test_8257D (rf=None):   
     if rf is None:
-        rf=E8257D(address='192.168.14.131')
+        rf=E8257D(address=instrument_address('e8257d'))
     print(rf.query('*IDN?'))
     rf.set_output(False)
     rf.set_frequency(10e9)

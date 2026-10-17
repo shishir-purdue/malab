@@ -6,6 +6,7 @@ import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from .controller import Dashboard
+from malab.bench_config import dashboard_options, config_path
 
 
 class LocalServer(ThreadingHTTPServer):
@@ -66,7 +67,7 @@ def serve(dashboard,port=8765):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port',type=int,default=8765)
-    parser.add_argument('--config',type=Path,default=Path(__file__).with_name('units.json'))
+    parser.add_argument('--config',type=Path,default=config_path())
     parser.add_argument('--dacs',nargs='+',help='Ordered unit IPs; overrides the config IP and USB lists')
     parser.add_argument('--dac',help='One-unit compatibility option')
     parser.add_argument('--meter');parser.add_argument('--meter-channel',type=int)
@@ -77,7 +78,7 @@ if __name__=='__main__':
     if args.debug_stacks:
         import faulthandler
         faulthandler.dump_traceback_later(10,repeat=True)
-    config=json.loads(args.config.read_text(encoding='utf-8'))
+    config=dashboard_options(args.config)
     if args.dac and args.dacs:parser.error('Use --dac or --dacs, not both')
     if args.dacs or args.dac:
         config['addresses']=args.dacs or [args.dac]

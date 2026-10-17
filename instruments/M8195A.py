@@ -959,7 +959,7 @@ def upload_M8195A_sequence(m8195a,waveform_matrix,awg, path):
 
     amplitudes = awg['amplitudes']
 
-    # m8195a = M8195A(address ='192.168.14.234:5025')
+    # m8195a = M8195A(address=instrument_address('m8195a')+':5025')
     # m8195a.socket.setblocking(1)
 
     # waveform_shape = waveform_matrix.shape
@@ -1000,8 +1000,10 @@ def upload_M8195A_sequence(m8195a,waveform_matrix,awg, path):
     m8195a.start_output()
 
 
+from malab.bench_config import instrument_address
+
 if __name__ == "__main__":
-    m8195a = M8195A(address ='192.168.14.234:5025')
+    m8195a = M8195A(address=instrument_address('m8195a')+':5025')
     m8195a.socket.setblocking(1)
 
     num_channels = 4

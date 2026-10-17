@@ -1,6 +1,6 @@
 from .M8195A import *
 
-m8195A = M8195A(address ='192.168.14.234:5025')
+m8195A = M8195A(address ='198.51.100.10:5025')
 
 print("Testing set enabled:")
 m8195A.set_enabled(1,True)

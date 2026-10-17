@@ -239,9 +239,10 @@ class E4440(SocketInstrument):
         # play the system exit sound if set
         winsound.PlaySound("SystemExit", winsound.SND_ALIAS)
 
+from malab.bench_config import instrument_address
 if __name__ == '__main__':
     #    condense_nwa_files(r'C:\\Users\\dave\\Documents\\My Dropbox\\UofC\\code\\004 - test temperature sweep\\sweep data','C:\\Users\\dave\\Documents\\My Dropbox\\UofC\\code\\004 - test temperature sweep\\sweep data\\test')
-    sa = E4440("E4440", address="192.168.14.152")
+    sa = E4440("E4440", address=instrument_address('spectrum'))
     print(sa.get_id())
     print("Taking data")
     data = sa.take_one()

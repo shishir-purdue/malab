@@ -11,7 +11,7 @@ from malab.instruments._line_socket import CommandError
 
 
 class UnitController:
-    def __init__(self, address='192.168.1.200', usb='COM5', dac_factory=AD5780, dac=None):
+    def __init__(self, address, usb=None, dac_factory=AD5780, dac=None):
         self.lock=threading.RLock()
         self.stop=threading.Event()
         self.commands=queue.Queue(maxsize=1)
