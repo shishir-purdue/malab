@@ -128,7 +128,7 @@ notebook for the current interface. The runner continues after assertion failure
 so the final cleanup and remaining independent cases run, records each FAIL,
 and exits with a nonzero status if any assertion failed.
 
-## Current two-unit bench
+## Recorded two-unit bench
 
 The ordered local configuration maps Unit 1 to DAC 1–4 and Unit 2 to DAC 5–8. The Keysight is on DAC 5. Unit 1 has USB
 power only while the external supply is on Unit 2; its network can respond
@@ -157,3 +157,116 @@ Only DAC 5 has analog evidence on Unit 2. See
 [recorded evidence](../../tests/evidence/2026-10-16-unit2-dac5/).
 
 See [local configuration](../../config/README.md) to add more units without source changes.
+
+## Recorded three-unit bench
+
+The ordered ignored configuration now contains three units, giving DAC 1–4,
+5–8 and 9–12. Only Unit 3 has the external analog supply. The Keysight is wired
+to **global DAC 10 (Unit 3, local channel 2)**. Units 1 and 2 remain reachable
+on USB/network but report unavailable analog readbacks; this is expected with
+their analog supplies off. The dashboard reads this configuration at launch.
+Reload http://localhost:8765 after restarting an idle server with changed settings.
+
+The [Unit 3 / DAC 10 notebook](../notebooks/unit3_dac10_acceptance.ipynb)
+contains the preflight, eleven set/get points, six bidirectional ramps, network
+reset/disconnect/abort and safe-zero checks directly in its cells. Recovery
+commands target Unit 3 only; safe zero uses the current 0.02 V/s rate. The
+network test checks that both other units remain reachable. Run only with the
+meter on DAC 10 and all Unit 3 outputs isolated:
+
+```powershell
+./.venv-bench/Scripts/python.exe malab/tools/run_modular_checks.py --live --isolated --notebook unit3_dac10_acceptance.ipynb
+```
+
+This run uses Unit 3's nominal calibration. Absolute voltage errors remain
+subject to the same ±0.5 mV criterion. Measurements and any failures are in the
+[Unit 3 evidence](../../tests/evidence/2026-10-16-unit3-dac10/); no correction is
+applied by the notebook. Only DAC 10 is connected to the meter. USB recovery
+emulation verifies firmware actions rather than the physical button contacts.
+
+## Per-channel resistor and current controls
+
+Open **Add resistor** on any channel, enter its total effective load resistance
+in **ohms**, and select **Save resistor**. That channel shows calculated **mA**
+as its primary reading, with voltage underneath. Its target and **Set current**
+use mA; its ramp speed uses **mA/s**. Edit or remove the resistor in the same
+panel. Saving/removing a resistance sends no output command. A mode change
+converts any existing target/rate to preserve its voltage meaning.
+
+The conversion is `current_mA = 1000 * voltage / resistance_ohms`. It assumes
+the entered resistance is across the DAC output. This is a calculated current,
+not current feedback or a direct ammeter reading. The Keysight stays in voltage
+mode; its panel also calculates mA when its channel has a resistor. Its voltage
+accuracy comparison remains in mV. The history selector offers voltage for all
+channels or current for channels with resistors. Stored history retains the
+resistance used at each sample, with gaps at setting changes.
+
+Settings live only in ignored `config/resistors.local.json`, keyed by physical
+unit address and local channel. They survive restart and global channel
+reordering. The firmware and physical buttons are unchanged. SAFE ZERO remains
+0.02 V/s, equivalent to `20 / resistance_ohms` mA/s for a resistive load. Existing
+voltage calibration errors also affect the calculated current.
+
+Both `AD5780` and `DACArray` provide these Python methods on an existing client:
+
+```python
+dacs.add_resistor(2, 1000)         # ohms; save only, output unchanged
+dacs.get_resistance(2)            # ohms or None
+dacs.get_current(2)               # calculated mA from register-derived voltage
+dacs.get_current_limits(2)        # voltage limits converted to mA
+dacs.set_current(2, 1.5)          # mA -> 1.5 V for this 1000-ohm load
+dacs.ramp_current(2, 0, 0.1)      # target mA, speed mA/s; existing ramp options apply
+dacs.remove_resistor(2)           # save only, output unchanged
+```
+
+For `AD5780`, the channel is local 1–4. For `DACArray`, it is global 1–4N in
+the active address-list order. Explicit `set_voltage/get_voltage/ramp` retain
+their original units in the Python API. Current commands validate resistance,
+finite targets/rates and device voltage limits. The dashboard also rejects
+outdated mode/resistance requests, changing resistance during an active operation,
+and current actions without a fresh network response. No output command is retried.
+Use the dashboard or a separate connected Python controller as the unit's owner,
+not both simultaneously.
+
+All regression cases are directly visible in
+[resistor_current_tests.ipynb](../notebooks/resistor_current_tests.ipynb). They
+use temporary settings and simulated instruments; no live outputs are changed:
+
+```powershell
+./.venv-bench/Scripts/python.exe malab/tools/run_modular_checks.py --offline-notebook resistor_current_tests.ipynb
+```
+
+The active local bench now contains two units in the user's selected order,
+giving DAC 1–4 and DAC 5–8. The meter is on DAC 2 (the former global DAC 10).
+Historical acceptance notebooks retain their original unit/channel numbering;
+their mapping preconditions must match before they can be run live again.
+
+## Channel names
+
+Select **Rename** beside a channel's DAC number, enter a name, and select
+**Save name**. **Cancel** discards the draft; **Reset** restores the default
+`DAC N` name. Names appear on the card, meter panel, ramp status and history
+legend. The numeric channel, unit and local channel remain visible for routing.
+
+Both `AD5780` (local channels 1–4) and `DACArray` (global channels 1–4N) support:
+
+```python
+dacs.set_label(2, "Bias coil")
+name = dacs.get_label(2)           # "Bias coil", or "" if unset
+dacs.set_label(2, "")              # clear the custom name
+```
+
+Labels are trimmed, single-line text of at most 80 characters. They are saved
+in ignored `config/labels.local.json`, keyed by physical address/local channel,
+and follow that output when the unit list is reordered. Saving a label works
+without an instrument connection and never sends an output/recovery command.
+Labels do not change channel numbers, resistor values or firmware. They render
+as plain text, including punctuation and HTML-like text.
+
+The [label notebook](../notebooks/channel_label_tests.ipynb) contains four visible
+offline cases for API persistence/reordering, validation/reset, dashboard routing
+without hardware I/O, and JavaScript Rename/Save/Cancel/Reset behavior:
+
+```powershell
+./.venv-bench/Scripts/python.exe malab/tools/run_modular_checks.py --offline-notebook channel_label_tests.ipynb
+```

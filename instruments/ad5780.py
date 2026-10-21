@@ -9,6 +9,8 @@ import math
 from numbers import Real
 import operator
 import time
+from .resistive_load import ResistiveLoadMixin, ResistorStore
+from .channel_labels import ChannelLabelMixin, LabelStore
 
 from ._line_socket import (LineSocketInstrument, InstrumentError, CommandError, ProtocolError,
                           InstrumentTimeout, positive_seconds)
@@ -73,11 +75,11 @@ class ChannelCalibration:
         return min(MAX_CODE, max(0, int(math.floor(raw+0.5))))
 
 
-class AD5780(LineSocketInstrument):
+class AD5780(ChannelLabelMixin, ResistiveLoadMixin, LineSocketInstrument):
     default_port = 23
 
     def __init__(self, name="AD5780", address=None, enabled=True, timeout=3.0, recv_length=1024,
-                 *, use_calibration=True, bench_port=None):
+                 *, use_calibration=True, bench_port=None, resistor_store=None, label_store=None):
         # Retained from the lab's supplied voltsource.py constructor.
         # Newline framing, not a single recv size, determines complete replies.
         if address is None:
@@ -88,10 +90,15 @@ class AD5780(LineSocketInstrument):
             raise ValueError("use_calibration must be bool")
         self.use_calibration = use_calibration
         self._calibration = {}
+        self._resistor_store = resistor_store if resistor_store is not None else ResistorStore()
+        self._label_store = label_store if label_store is not None else LabelStore()
         if bench_port is not None and (not isinstance(bench_port, str) or not bench_port.strip()):
             raise ValueError("bench_port must be a serial port name or None")
         self.bench_port, self._bench = bench_port, None
         super().__init__(name, address, enabled, timeout)
+
+    def _channel_key(self, channel):
+        return self.address, integer(channel, 1, 4, 'channel')
 
     def _handshake(self):
         self._calibration.clear()

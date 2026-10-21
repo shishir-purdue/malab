@@ -7,6 +7,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from .controller import Dashboard
 from malab.bench_config import dashboard_options, config_path
+from malab.instruments.resistive_load import ResistorStore
+from malab.instruments.channel_labels import LabelStore
 
 
 class LocalServer(ThreadingHTTPServer):
@@ -89,4 +91,5 @@ if __name__=='__main__':
         config['bench_ports']=[args.usb or None]
     if args.meter:config['meter_address']=args.meter
     if args.meter_channel is not None:config['meter_channel']=args.meter_channel
-    serve(Dashboard(**config),args.port)
+    serve(Dashboard(**config,resistor_store=ResistorStore(args.config.parent/'resistors.local.json'),
+                    label_store=LabelStore(args.config.parent/'labels.local.json')),args.port)

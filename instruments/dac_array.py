@@ -5,6 +5,8 @@ import ipaddress
 import threading
 from .ad5780 import AD5780, integer
 from ._line_socket import InstrumentError
+from .resistive_load import ResistiveLoadMixin, ResistorStore
+from .channel_labels import ChannelLabelMixin, LabelStore
 
 
 @dataclass(frozen=True)
@@ -47,7 +49,7 @@ def normalize_addresses(addresses):
     return tuple(result)
 
 
-class DACArray:
+class DACArray(ChannelLabelMixin, ResistiveLoadMixin):
     """Global channels 1..4N, in immutable IP-list order.
 
     Construction is disconnected by default. connect() returns an explicit
@@ -56,7 +58,9 @@ class DACArray:
     and affect exactly that box's four outputs. There is no output-command retry.
     """
     def __init__(self, addresses, *, bench_ports=None, enabled=False, timeout=3,
-                 dac_factory=AD5780):
+                 dac_factory=AD5780, resistor_store=None, label_store=None):
+        self._resistor_store=resistor_store if resistor_store is not None else ResistorStore()
+        self._label_store=label_store if label_store is not None else LabelStore()
         self.addresses=normalize_addresses(addresses)
         ports=[None]*len(self.addresses) if bench_ports is None else bench_ports
         if not isinstance(ports,(list,tuple)) or len(ports)!=len(self.addresses):
@@ -68,6 +72,9 @@ class DACArray:
         self.bench_ports=tuple(p.strip() if p is not None else None for p in ports)
         self.devices=tuple(dac_factory(address=a,enabled=False,timeout=timeout,bench_port=p)
                            for a,p in zip(self.addresses,self.bench_ports))
+        for device in self.devices:
+            if isinstance(device,ResistiveLoadMixin):device._resistor_store=self._resistor_store
+            if isinstance(device,ChannelLabelMixin):device._label_store=self._label_store
         self._locks=tuple(threading.RLock() for _ in self.devices)
         self._recovery_locks=tuple(threading.RLock() for _ in self.devices)
         self.connection_results=self.connect() if enabled else {}
@@ -83,6 +90,10 @@ class DACArray:
         channel=integer(channel,1,self.channel_count,'channel')
         index,local=divmod(channel-1,4)
         return ChannelLocation(channel,index+1,local+1,self.addresses[index])
+
+    def _channel_key(self,channel):
+        location=self.locate(channel)
+        return location.address,location.local_channel
 
     def _call(self,unit,method,*args,recovery=False,**kwargs):
         index=self.unit_index(unit)

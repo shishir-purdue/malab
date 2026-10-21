@@ -10,11 +10,13 @@ from nbclient import NotebookClient
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--live',action='store_true')
 parser.add_argument('--isolated',action='store_true')
-parser.add_argument('--notebook',choices=['modular_dac_acceptance.ipynb','unit2_dac5_acceptance.ipynb','safe_zero_rate_acceptance.ipynb'],help='Select a visible live acceptance notebook')
+parser.add_argument('--notebook',choices=['modular_dac_acceptance.ipynb','unit2_dac5_acceptance.ipynb','unit3_dac10_acceptance.ipynb','safe_zero_rate_acceptance.ipynb'],help='Select a visible live acceptance notebook')
+parser.add_argument('--offline-notebook',choices=['multidac_offline_tests.ipynb','resistor_current_tests.ipynb','channel_label_tests.ipynb'],help='Select visible offline tests; no instrument access')
 args=parser.parse_args()
 if args.notebook and not args.live:parser.error('--notebook requires --live')
+if args.offline_notebook and args.live:parser.error('--offline-notebook cannot be used with --live')
 root=Path(__file__).resolve().parents[2]
-name=(args.notebook or 'modular_dac_acceptance.ipynb') if args.live else 'multidac_offline_tests.ipynb'
+name=(args.notebook or 'modular_dac_acceptance.ipynb') if args.live else (args.offline_notebook or 'multidac_offline_tests.ipynb')
 n=nbformat.read(root/'malab/notebooks'/name,as_version=4)
 out=root/'malab/notebooks/results'/('modular_run_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
 out.mkdir(parents=True)

@@ -11,7 +11,8 @@ from malab.instruments._line_socket import CommandError
 
 
 class UnitController:
-    def __init__(self, address, usb=None, dac_factory=AD5780, dac=None):
+    def __init__(self, address, usb=None, dac_factory=AD5780, dac=None, resistor_store=None):
+        self.address=address;self.resistor_store=resistor_store
         self.lock=threading.RLock()
         self.stop=threading.Event()
         self.commands=queue.Queue(maxsize=1)
@@ -80,7 +81,7 @@ class UnitController:
         with self.lock:
             self.jobs[data['request_id']].update(state='failed' if error else 'complete',error=error,finished=time.time())
             self.state['pending']=None
-        label=data['action'].replace('_',' ').upper()
+        label=data.get('display_action',data['action']).replace('_',' ').upper()
         self.event(f'{label}: {error}' if error else f'{label} accepted', 'error' if error else 'info')
 
     def refresh_profiles(self):
@@ -103,6 +104,9 @@ class UnitController:
 
     def action(self,data):
         action=data['action']
+        if action in ('set','ramp') and 'expected_resistance_ohms' in data:
+            if self.resistor_store.get(self.address,data['channel'])!=data['expected_resistance_ohms']:
+                raise ValueError('Resistance changed before execution; review the target and submit again')
         if action=='connect':
             self.want_connection=True;self.retry_at=0
             with self.lock:self.state['network'].update(state='connecting',error=None)
